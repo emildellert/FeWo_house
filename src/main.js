@@ -460,10 +460,11 @@ const cameraRig = {
   distance: 0,
   mouseTarget: new THREE.Vector2(),
   mouseCurrent: new THREE.Vector2(),
-  autoPanSpeed: 0.22,
-  autoPanAngle: 0.1,
-  mousePanAngle: 0.028,
-  mouseLift: 0.28,
+  autoPanSpeed: 0.23,
+  autoPanAngle: 0.22,
+  autoPanBias: -0.06,
+  mousePanAngle: 0.075,
+  mouseLift: 0.58,
 }
 
 const scratch = {
@@ -1275,9 +1276,9 @@ function updateSmoke(elapsed, smokeMix) {
 function updateCameraRig(elapsed) {
   if (!cameraRig.ready) return
 
-  cameraRig.mouseCurrent.lerp(cameraRig.mouseTarget, 0.08)
+  cameraRig.mouseCurrent.lerp(cameraRig.mouseTarget, 0.14)
 
-  const autoYaw = Math.sin(elapsed * cameraRig.autoPanSpeed) * cameraRig.autoPanAngle
+  const autoYaw = cameraRig.autoPanBias + Math.sin(elapsed * cameraRig.autoPanSpeed) * cameraRig.autoPanAngle
   const mouseYaw = cameraRig.mouseCurrent.x * cameraRig.mousePanAngle
   const totalYaw = autoYaw + mouseYaw
   const lift = cameraRig.mouseCurrent.y * cameraRig.mouseLift
