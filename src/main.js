@@ -45,11 +45,14 @@ warmBounce.position.set(4, 3, -8)
 scene.add(warmBounce)
 
 const controls = new OrbitControls(camera, renderer.domElement)
-controls.enableDamping = true
-controls.dampingFactor = 0.055
+controls.enableDamping = false
+controls.dampingFactor = 0
+controls.enableRotate = false
+controls.enableZoom = false
 controls.enablePan = false
 controls.minPolarAngle = 0.22
 controls.maxPolarAngle = Math.PI * 0.495
+controls.enabled = false
 
 const world = new THREE.Group()
 scene.add(world)
@@ -450,12 +453,27 @@ const animationState = {
   chimneyResolved: false,
 }
 
+const cameraRig = {
+  ready: false,
+  target: new THREE.Vector3(),
+  baseOffset: new THREE.Vector3(),
+  distance: 0,
+  mouseTarget: new THREE.Vector2(),
+  mouseCurrent: new THREE.Vector2(),
+  autoPanSpeed: 0.22,
+  autoPanAngle: 0.1,
+  mousePanAngle: 0.028,
+  mouseLift: 0.28,
+}
+
 const scratch = {
   vectorA: new THREE.Vector3(),
   vectorB: new THREE.Vector3(),
   normal: new THREE.Vector3(),
   normalMatrix: new THREE.Matrix3(),
 }
+
+const cameraPanAxis = new THREE.Vector3(0, 1, 0)
 
 const loader = new GLTFLoader()
 const clock = new THREE.Clock()
@@ -1254,6 +1272,24 @@ function updateSmoke(elapsed, smokeMix) {
   })
 }
 
+function updateCameraRig(elapsed) {
+  if (!cameraRig.ready) return
+
+  cameraRig.mouseCurrent.lerp(cameraRig.mouseTarget, 0.08)
+
+  const autoYaw = Math.sin(elapsed * cameraRig.autoPanSpeed) * cameraRig.autoPanAngle
+  const mouseYaw = cameraRig.mouseCurrent.x * cameraRig.mousePanAngle
+  const totalYaw = autoYaw + mouseYaw
+  const lift = cameraRig.mouseCurrent.y * cameraRig.mouseLift
+
+  scratch.vectorA.copy(cameraRig.baseOffset)
+  scratch.vectorA.applyAxisAngle(cameraPanAxis, totalYaw)
+
+  camera.position.copy(cameraRig.target).add(scratch.vectorA)
+  camera.position.y += lift
+  camera.lookAt(cameraRig.target.x, cameraRig.target.y + lift * 0.18, cameraRig.target.z)
+}
+
 function updateShadowFrustum() {
   const worldBounds = new THREE.Box3().setFromObject(world)
   const size = worldBounds.getSize(new THREE.Vector3())
@@ -1290,23 +1326,27 @@ function updateSunAnchor() {
 
 function frameScene() {
   const box = new THREE.Box3().setFromObject(world)
+  if (box.isEmpty()) return
+
   const size = box.getSize(new THREE.Vector3())
   const center = box.getCenter(new THREE.Vector3())
 
   const maxDim = Math.max(size.x, size.y, size.z)
   const fitDistance = maxDim / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)))
-  const distance = fitDistance * 1.62
+  const distance = fitDistance * 2.08
 
   const direction = new THREE.Vector3(1.04, 0.58, 1.0).normalize()
-  camera.position.copy(center).add(direction.multiplyScalar(distance))
   camera.near = Math.max(0.03, distance / 180)
   camera.far = distance * 120
   camera.updateProjectionMatrix()
 
-  controls.target.set(center.x, center.y + size.y * 0.11, center.z - size.z * 0.03)
-  controls.minDistance = distance * 0.34
-  controls.maxDistance = distance * 4.2
-  controls.update()
+  cameraRig.target.set(center.x, center.y + size.y * 0.11, center.z - size.z * 0.03)
+  cameraRig.baseOffset.copy(direction).multiplyScalar(distance)
+  cameraRig.distance = distance
+  cameraRig.ready = true
+
+  camera.position.copy(cameraRig.target).add(cameraRig.baseOffset)
+  camera.lookAt(cameraRig.target)
 
   updateSunAnchor()
   sun.position.copy(sunMotion.basePosition)
@@ -1365,8 +1405,23 @@ function onResize() {
   camera.aspect = window.innerWidth / window.innerHeight
   camera.updateProjectionMatrix()
   renderer.setSize(window.innerWidth, window.innerHeight)
+  frameScene()
 }
 
+function onPointerMove(event) {
+  const x = THREE.MathUtils.clamp((event.clientX / window.innerWidth) * 2 - 1, -1, 1)
+  const y = THREE.MathUtils.clamp((event.clientY / window.innerHeight) * 2 - 1, -1, 1)
+  cameraRig.mouseTarget.set(x, y)
+}
+
+function onPointerLeave() {
+  cameraRig.mouseTarget.set(0, 0)
+}
+
+renderer.domElement.addEventListener('pointermove', onPointerMove)
+renderer.domElement.addEventListener('pointerleave', onPointerLeave)
+renderer.domElement.addEventListener('pointercancel', onPointerLeave)
+window.addEventListener('blur', onPointerLeave)
 window.addEventListener('resize', onResize)
 
 function animate() {
@@ -1428,8 +1483,8 @@ function animate() {
   updateNightLighting(nightMix, elapsed)
 
   updateSmoke(elapsed, smokeMix)
+  updateCameraRig(elapsed)
 
-  controls.update()
   renderer.render(scene, camera)
 }
 
