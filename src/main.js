@@ -1338,9 +1338,10 @@ function frameScene() {
   const maxDim = Math.max(size.x, size.y, size.z)
   const fitDistance = maxDim / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)))
   const aspect = camera.aspect
+  const viewportHeight = app.clientHeight || window.innerHeight
+  const shortHeightBoost = viewportHeight < 560 ? ((560 - viewportHeight) / 560) * 0.34 : 0
   const portraitBoost = aspect < 1 ? (1 - aspect) * 0.42 : 0
-  const wideBoost = aspect > 1.8 ? Math.min(0.44, (aspect - 1.8) * 0.24) : 0
-  const distance = fitDistance * (2.32 + portraitBoost + wideBoost)
+  const distance = fitDistance * (2.04 + portraitBoost + shortHeightBoost)
 
   const direction = new THREE.Vector3(1.04, 0.58, 1.0).normalize()
   camera.near = Math.max(0.03, distance / 180)
