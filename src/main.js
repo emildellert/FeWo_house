@@ -5,20 +5,23 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 
 const app = document.querySelector('#app')
+const initialWidth = app.clientWidth || window.innerWidth
+const initialHeight = app.clientHeight || window.innerHeight
 
-const renderer = new THREE.WebGLRenderer({ antialias: true })
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-renderer.setSize(window.innerWidth, window.innerHeight)
+renderer.setSize(initialWidth, initialHeight)
 renderer.outputColorSpace = THREE.SRGBColorSpace
 renderer.toneMapping = THREE.NoToneMapping
 renderer.shadowMap.enabled = true
 renderer.shadowMap.type = THREE.PCFSoftShadowMap
+renderer.setClearColor(0x000000, 0)
 app.appendChild(renderer.domElement)
 
 const scene = new THREE.Scene()
-scene.background = new THREE.Color(0xffffff)
+scene.background = null
 
-const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.03, 260)
+const camera = new THREE.PerspectiveCamera(45, initialWidth / initialHeight, 0.03, 260)
 camera.position.set(8, 5.5, 8)
 scene.add(camera)
 
@@ -461,10 +464,10 @@ const cameraRig = {
   mouseTarget: new THREE.Vector2(),
   mouseCurrent: new THREE.Vector2(),
   autoPanSpeed: 0.23,
-  autoPanAngle: 0.28,
-  autoPanBias: -0.28,
-  mousePanAngle: 0.14,
-  mouseLift: 0.95,
+  autoPanAngle: 0.34,
+  autoPanBias: -0.34,
+  mousePanAngle: 0.18,
+  mouseLift: 1.15,
 }
 
 const scratch = {
@@ -1278,7 +1281,7 @@ function updateCameraRig(elapsed) {
 
   cameraRig.mouseCurrent.lerp(cameraRig.mouseTarget, 0.2)
 
-  const autoYaw = cameraRig.autoPanBias + Math.sin(elapsed * cameraRig.autoPanSpeed) * cameraRig.autoPanAngle
+  const autoYaw = cameraRig.autoPanBias - Math.sin(elapsed * cameraRig.autoPanSpeed) * cameraRig.autoPanAngle
   const mouseYaw = cameraRig.mouseCurrent.x * cameraRig.mousePanAngle
   const totalYaw = autoYaw + mouseYaw
   const lift = cameraRig.mouseCurrent.y * cameraRig.mouseLift
@@ -1334,14 +1337,17 @@ function frameScene() {
 
   const maxDim = Math.max(size.x, size.y, size.z)
   const fitDistance = maxDim / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)))
-  const distance = fitDistance * 2.08
+  const aspect = camera.aspect
+  const portraitBoost = aspect < 1 ? (1 - aspect) * 0.42 : 0
+  const wideBoost = aspect > 1.8 ? Math.min(0.44, (aspect - 1.8) * 0.24) : 0
+  const distance = fitDistance * (2.32 + portraitBoost + wideBoost)
 
   const direction = new THREE.Vector3(1.04, 0.58, 1.0).normalize()
   camera.near = Math.max(0.03, distance / 180)
   camera.far = distance * 120
   camera.updateProjectionMatrix()
 
-  cameraRig.target.set(center.x, center.y + size.y * 0.11, center.z - size.z * 0.03)
+  cameraRig.target.set(center.x, center.y + size.y * 0.08, center.z - size.z * 0.02)
   cameraRig.baseOffset.copy(direction).multiplyScalar(distance)
   cameraRig.distance = distance
   cameraRig.ready = true
@@ -1403,9 +1409,11 @@ loader.load(
 )
 
 function onResize() {
-  camera.aspect = window.innerWidth / window.innerHeight
+  const width = app.clientWidth || window.innerWidth
+  const height = app.clientHeight || window.innerHeight
+  camera.aspect = width / height
   camera.updateProjectionMatrix()
-  renderer.setSize(window.innerWidth, window.innerHeight)
+  renderer.setSize(width, height)
   frameScene()
 }
 
@@ -1424,6 +1432,10 @@ renderer.domElement.addEventListener('pointerleave', onPointerLeave)
 renderer.domElement.addEventListener('pointercancel', onPointerLeave)
 window.addEventListener('blur', onPointerLeave)
 window.addEventListener('resize', onResize)
+if (typeof ResizeObserver !== 'undefined') {
+  const resizeObserver = new ResizeObserver(onResize)
+  resizeObserver.observe(app)
+}
 
 function animate() {
   requestAnimationFrame(animate)
